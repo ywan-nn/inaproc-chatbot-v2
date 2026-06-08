@@ -14,7 +14,7 @@ from google import genai
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 st.set_page_config(
     page_title="Chatbot INAPROC - AI Assistant",
