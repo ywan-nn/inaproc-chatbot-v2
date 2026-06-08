@@ -22,29 +22,27 @@ st.set_page_config(
     layout="wide"
 )
 
-<style>
-    :root {
-        --merah-inaproc: #B22222;
-        --merah-muda: #FFE4E1;
-        --merah-tua: #8B0000;
-    }
+# ==================== PALETTE WARNA MERAH ====================
+st.markdown(
+    """
+    <style>
     .stButton > button {
-        background-color: var(--merah-inaproc);
+        background-color: #B22222;
         color: white;
         border: none;
         border-radius: 8px;
         width: 100%;
     }
     .stButton > button:hover {
-        background-color: var(--merah-tua);
+        background-color: #8B0000;
     }
     .stChatInput input {
-        border: 2px solid var(--merah-inaproc);
+        border: 2px solid #B22222;
         border-radius: 20px;
     }
     [data-testid="stSidebar"] {
         background-color: #FFF8F5;
-        border-right: 3px solid var(--merah-inaproc);
+        border-right: 3px solid #B22222;
     }
     .user-profile-card {
         background-color: #FFE4E1;
@@ -61,8 +59,10 @@ st.set_page_config(
         font-size: 12px;
         display: inline-block;
     }
-</style>
-""", unsafe_allow_html=True)
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 try:
     API_KEY = st.secrets["google_api_key"]
