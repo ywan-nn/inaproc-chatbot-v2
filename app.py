@@ -13,18 +13,15 @@ from faker import Faker
 from google import genai
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.schema import Document
 
-# ==================== KONFIGURASI HALAMAN ====================
 st.set_page_config(
     page_title="Chatbot INAPROC - AI Assistant",
     page_icon="🤖",
     layout="wide"
 )
 
-# ==================== PALETTE WARNA MERAH ====================
-st.markdown("""
 <style>
     :root {
         --merah-inaproc: #B22222;
@@ -67,7 +64,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== AMBIL API KEY DARI SECRETS ====================
 try:
     API_KEY = st.secrets["google_api_key"]
     client = genai.Client(api_key=API_KEY)
@@ -85,7 +81,6 @@ except Exception as e:
     )
     st.stop()
 
-# ==================== USER PROFILING ====================
 USER_CREDENTIALS = {
     "ppk_budi": {"password": "12345", "nama": "Budi Santoso", "role": "PPK", "unit": "Dinas Pendidikan", "preferences": {"prioritas": ["harga", "waktu_pengiriman"]}},
     "staff_siti": {"password": "12345", "nama": "Siti Aminah", "role": "Staff Pengadaan", "unit": "Dinas Kesehatan", "preferences": {"prioritas": ["kualitas", "garansi"]}},
@@ -101,7 +96,6 @@ def check_login(username: str, password: str) -> bool:
 def get_user_profile(username: str) -> dict:
     return USER_CREDENTIALS.get(username)
 
-# ==================== TAMPILAN LOGIN ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.current_user = None
@@ -129,7 +123,6 @@ if not st.session_state.logged_in:
         st.markdown("**Akun Demo:**\n- ppk_budi / 12345\n- staff_siti / 12345\n- vendor_ahmad / 12345\n- admin / admin123")
     st.stop()
 
-# ==================== RAG ====================
 @st.cache_resource
 def build_knowledge_base():
     with st.spinner("Memuat pengetahuan dari Pusat Bantuan INAPROC..."):
@@ -160,7 +153,6 @@ def build_knowledge_base():
 if st.session_state.vectorstore is None:
     st.session_state.vectorstore = build_knowledge_base()
 
-# ==================== DATA DUMMY ====================
 @st.cache_data
 def generate_orders():
     fake = Faker('id_ID')
@@ -180,7 +172,6 @@ def generate_orders():
 if "orders_db" not in st.session_state:
     st.session_state.orders_db = generate_orders()
 
-# ==================== FUNGSI CHATBOT ====================
 def check_order_status(po_number: str) -> dict:
     if po_number in st.session_state.orders_db:
         return {"found": True, **st.session_state.orders_db[po_number]}
@@ -232,7 +223,6 @@ def get_bot_response(user_input: str) -> str:
     except Exception as e:
         return f"Error: {str(e)}"
 
-# ==================== UI ====================
 profile = st.session_state.user_profile
 
 col1, col2, col3 = st.columns([2, 2, 1])
