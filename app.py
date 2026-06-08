@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from faker import Faker
 from google import genai
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.schema import Document
 
