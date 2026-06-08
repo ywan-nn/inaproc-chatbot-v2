@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 from faker import Faker
 from google import genai
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.schema import Document
