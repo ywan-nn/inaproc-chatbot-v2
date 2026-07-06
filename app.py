@@ -239,11 +239,11 @@ def get_bot_response(user_input: str) -> str:
     if st.session_state.messages:
         for msg in st.session_state.messages[-4:]:
             history += f"{msg['role']}: {msg['content'][:100]}...\n"
-    
+            
     prompt = f"""
 Anda adalah asisten chatbot resmi untuk INAPROC (Katalog Elektronik versi 6).
 
-**PERAN ANDA:** Menjawab pertanyaan pengguna berdasarkan **FAQs - Katalog Elektronik versi 6** yang telah disediakan.
+**PERAN ANDA:** Menjawab pertanyaan pengguna berdasarkan **FAQ - Katalog Elektronik versi 6** yang telah disediakan.
 
 **ATURAN WAJIB (JANGAN DILANGGAR):**
 1. ❌ JANGAN menambahkan informasi di luar dokumen FAQ!
@@ -251,7 +251,7 @@ Anda adalah asisten chatbot resmi untuk INAPROC (Katalog Elektronik versi 6).
 3. ✅ HANYA gunakan informasi dari bagian "INFORMASI DARI FAQ" di bawah ini.
 4. ✅ Jika informasi tidak ada di FAQ, katakan "Maaf, informasi tersebut tidak tersedia di FAQ Katalog Elektronik versi 6. Silakan hubungi Pusat Bantuan INAPROC di layanan@lkpp.go.id atau WhatsApp 08111557709."
 5. ✅ Jika ada di FAQ, jawab dengan detail dan tepat sesuai dokumen.
-6. ✅ Sertakan nomor bagian/sub-bagian FAQ jika relevan (misal: "Berdasarkan FAQ 3.1.1.1.A...").
+6. ✅ Jawab dengan bahasa Indonesia yang jelas dan langsung, TANPA menyebutkan sumber dokumen (seperti "Berdasarkan FAQ ...").
 
 **ROLE USER:** {role}
 
@@ -266,7 +266,7 @@ Anda adalah asisten chatbot resmi untuk INAPROC (Katalog Elektronik versi 6).
 
 **PERTANYAAN USER:** {user_input}
 
-**JAWABAN (HARUS DARI FAQ, JANGAN HALUSINASI):**
+**JAWABAN (HARUS DARI FAQ, JANGAN HALUSINASI, TANPA SUMBER DOKUMEN):**
 """
     
     try:
