@@ -1,13 +1,11 @@
-# app.py - Chatbot INAPROC dengan User Profiling & RAG
-# API key dibaca dari st.secrets, JANGAN hardcode!
-
 import streamlit as st
 import pandas as pd
 import random
 import json
 import re
 import requests
-from bs4 import BeautifulSoup
+import os
+import docx
 from datetime import datetime, timedelta
 from faker import Faker
 from google import genai
@@ -22,27 +20,30 @@ st.set_page_config(
     layout="wide"
 )
 
-# ==================== PALETTE WARNA MERAH ====================
-st.markdown(
-    """
-    <style>
+st.markdown("""
+<style>
+    :root {
+        --merah-inaproc: #B22222;
+        --merah-muda: #FFE4E1;
+        --merah-tua: #8B0000;
+    }
     .stButton > button {
-        background-color: #B22222;
+        background-color: var(--merah-inaproc);
         color: white;
         border: none;
         border-radius: 8px;
         width: 100%;
     }
     .stButton > button:hover {
-        background-color: #8B0000;
+        background-color: var(--merah-tua);
     }
     .stChatInput input {
-        border: 2px solid #B22222;
+        border: 2px solid var(--merah-inaproc);
         border-radius: 20px;
     }
     [data-testid="stSidebar"] {
         background-color: #FFF8F5;
-        border-right: 3px solid #B22222;
+        border-right: 3px solid var(--merah-inaproc);
     }
     .user-profile-card {
         background-color: #FFE4E1;
@@ -59,33 +60,21 @@ st.markdown(
         font-size: 12px;
         display: inline-block;
     }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+</style>
+""", unsafe_allow_html=True)
 
 try:
     API_KEY = st.secrets["google_api_key"]
     client = genai.Client(api_key=API_KEY)
-    st.success("✅ Koneksi ke Gemini API berhasil!")
 except Exception as e:
     st.error(f"❌ Gagal mengambil API Key: {e}")
-    st.info(
-        "**Cara Setting Secrets di Streamlit Cloud:**\n\n"
-        "1. Buka dashboard aplikasi di share.streamlit.io\n"
-        "2. Klik Settings (ikon gerigi)\n"
-        "3. Scroll ke Secrets\n"
-        "4. Tambahkan:\n\n"
-        "   google_api_key = 'API_KEY_KAMU'\n\n"
-        "5. Klik Save"
-    )
     st.stop()
 
 USER_CREDENTIALS = {
-    "ppk_budi": {"password": "12345", "nama": "Budi Santoso", "role": "PPK", "unit": "Dinas Pendidikan", "preferences": {"prioritas": ["harga", "waktu_pengiriman"]}},
-    "staff_siti": {"password": "12345", "nama": "Siti Aminah", "role": "Staff Pengadaan", "unit": "Dinas Kesehatan", "preferences": {"prioritas": ["kualitas", "garansi"]}},
-    "vendor_ahmad": {"password": "12345", "nama": "Ahmad Wijaya", "role": "Vendor", "unit": "PT Maju Jaya", "preferences": {"prioritas": ["harga_kompetitif"]}},
-    "admin": {"password": "admin123", "nama": "Admin INAPROC", "role": "Administrator", "unit": "LKPP", "preferences": {"prioritas": ["kepatuhan"]}}
+    "ppk_budi": {"password": "12345", "nama": "Budi Santoso", "role": "PPK", "unit": "Dinas Pendidikan"},
+    "staff_siti": {"password": "12345", "nama": "Siti Aminah", "role": "Staff Pengadaan", "unit": "Dinas Kesehatan"},
+    "vendor_ahmad": {"password": "12345", "nama": "Ahmad Wijaya", "role": "Vendor", "unit": "PT Maju Jaya"},
+    "admin": {"password": "admin123", "nama": "Admin INAPROC", "role": "Administrator", "unit": "LKPP"}
 }
 
 def check_login(username: str, password: str) -> bool:
@@ -124,34 +113,78 @@ if not st.session_state.logged_in:
     st.stop()
 
 @st.cache_resource
-def build_knowledge_base():
-    with st.spinner("Memuat pengetahuan dari Pusat Bantuan INAPROC..."):
-        urls = [
-            "https://bantuan.inaproc.id/hc/id-id/sections/9000771875471-Pertanyaan-yang-Sering-Tanyakan-Seputar-Manajemen-Akun-SPSE",
-            "https://bantuan.inaproc.id/hc/id-id/sections/9031756154767-Panduan-Penyedia"
+def build_knowledge_base_from_docx():
+    """
+    Membangun knowledge base dari file FAQ - Katalog Elektronik versi 6.docx
+    """
+    with st.spinner("📚 Memuat pengetahuan dari FAQ Katalog Elektronik versi 6..."):
+        all_documents = []
+        
+        file_paths = [
+            "FAQ - Katalog Elektronik versi 6.docx",
+            "./FAQ - Katalog Elektronik versi 6.docx",
+            "data/FAQ - Katalog Elektronik versi 6.docx",
         ]
-        all_docs = []
-        fallback = "INAPROC adalah platform pengadaan digital LKPP. Pusat Bantuan: layanan@lkpp.go.id, WhatsApp 08111557709, Call Center 144."
-        all_docs.append(Document(page_content=fallback, metadata={"source": "fallback"}))
         
-        for url in urls:
+        doc_path = None
+        for path in file_paths:
+            if os.path.exists(path):
+                doc_path = path
+                break
+        
+        if not doc_path:
+            st.warning("⚠️ File FAQ tidak ditemukan. Gunakan pengetahuan default.")
+            fallback = "INAPROC adalah platform pengadaan digital LKPP. Katalog Elektronik versi 6 adalah versi terbaru."
+            doc = Document(page_content=fallback, metadata={"source": "fallback"})
+            all_documents.append(doc)
+        else:
             try:
-                r = requests.get(url, timeout=30)
-                soup = BeautifulSoup(r.content, 'html.parser')
-                content = soup.find('div', class_='article-body')
-                if content:
-                    text = content.get_text(separator='\n', strip=True)
-                    all_docs.append(Document(page_content=text[:3000], metadata={"source": url}))
-            except:
-                pass
+                doc = docx.Document(doc_path)
+                full_text = []
+                for para in doc.paragraphs:
+                    if para.text.strip():
+                        full_text.append(para.text.strip())
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = []
+                        for cell in row.cells:
+                            if cell.text.strip():
+                                row_text.append(cell.text.strip())
+                        if row_text:
+                            full_text.append(" | ".join(row_text))
+                
+                doc_content = "\n".join(full_text)
+                doc_chunk = Document(
+                    page_content=doc_content,
+                    metadata={"source": "FAQ - Katalog Elektronik versi 6.docx"}
+                )
+                all_documents.append(doc_chunk)
+                st.success(f"✅ Berhasil membaca file: {doc_path}")
+                
+            except Exception as e:
+                st.error(f"❌ Gagal membaca file: {str(e)}")
+                fallback = "INAPROC adalah platform pengadaan digital LKPP."
+                doc = Document(page_content=fallback, metadata={"source": "fallback"})
+                all_documents.append(doc)
         
-        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-        chunks = splitter.split_documents(all_docs)
-        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
-        return FAISS.from_documents(chunks, embeddings)
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=1200,
+            chunk_overlap=200,
+            separators=["\n\n", "\n", ". ", " ", ""]
+        )
+        
+        chunks = text_splitter.split_documents(all_documents)
+        
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
+        vectorstore = FAISS.from_documents(chunks, embeddings)
+        
+        st.success(f"✅ Knowledge base siap! {len(chunks)} chunks")
+        return vectorstore
 
 if st.session_state.vectorstore is None:
-    st.session_state.vectorstore = build_knowledge_base()
+    st.session_state.vectorstore = build_knowledge_base_from_docx()
 
 @st.cache_data
 def generate_orders():
@@ -178,14 +211,17 @@ def check_order_status(po_number: str) -> dict:
     return {"found": False}
 
 def search_kb(query: str) -> str:
+    """Cari di knowledge base, ambil 5 chunks teratas agar lebih lengkap"""
     try:
-        docs = st.session_state.vectorstore.similarity_search(query, k=2)
-        return "\n".join([d.page_content for d in docs])
-    except:
+        docs = st.session_state.vectorstore.similarity_search(query, k=5)
+        return "\n\n---\n\n".join([d.page_content for d in docs])
+    except Exception as e:
         return ""
 
 def get_bot_response(user_input: str) -> str:
-    po_match = re.search(r'PO[-_]?\d{4,}[-_]?\d{3,}', user_input.upper())
+    po_pattern = r'PO[-_]?\d{4,}[-_]?\d{3,}'
+    po_match = re.search(po_pattern, user_input.upper())
+    
     order_info = ""
     if po_match:
         po = po_match.group(0)
@@ -195,8 +231,9 @@ def get_bot_response(user_input: str) -> str:
             order_info = f"Status: {status['status']}, Produk: {status['produk']}, Vendor: {status['vendor']}"
     
     kb_context = search_kb(user_input)
+    
     profile = st.session_state.user_profile
-    role = profile.get("role", "User")
+    role = profile.get("role", "User") if profile else "User"
     
     history = ""
     if st.session_state.messages:
@@ -204,35 +241,54 @@ def get_bot_response(user_input: str) -> str:
             history += f"{msg['role']}: {msg['content'][:100]}...\n"
     
     prompt = f"""
-    Kamu asisten INAPROC. Role user: {role}
-    
-    Info Pusat Bantuan: {kb_context[:1500]}
-    {f"Info Pesanan: {order_info}" if order_info else ""}
-    
-    Percakapan sebelumnya:
-    {history}
-    
-    User: {user_input}
-    
-    Jawab dengan bahasa Indonesia yang ramah dan sesuai role user. Jangan minta PO lagi jika sudah ada.
-    """
+Anda adalah asisten chatbot resmi untuk INAPROC (Katalog Elektronik versi 6).
+
+**PERAN ANDA:** Menjawab pertanyaan pengguna berdasarkan **FAQs - Katalog Elektronik versi 6** yang telah disediakan.
+
+**ATURAN WAJIB (JANGAN DILANGGAR):**
+1. ❌ JANGAN menambahkan informasi di luar dokumen FAQ!
+2. ❌ JANGAN berhalusinasi atau membuat jawaban sendiri!
+3. ✅ HANYA gunakan informasi dari bagian "INFORMASI DARI FAQ" di bawah ini.
+4. ✅ Jika informasi tidak ada di FAQ, katakan "Maaf, informasi tersebut tidak tersedia di FAQ Katalog Elektronik versi 6. Silakan hubungi Pusat Bantuan INAPROC di layanan@lkpp.go.id atau WhatsApp 08111557709."
+5. ✅ Jika ada di FAQ, jawab dengan detail dan tepat sesuai dokumen.
+6. ✅ Sertakan nomor bagian/sub-bagian FAQ jika relevan (misal: "Berdasarkan FAQ 3.1.1.1.A...").
+
+**ROLE USER:** {role}
+
+**INFORMASI DARI FAQ (WAJIB DIPAKAI):**
+{kb_context[:4000]}
+
+**INFORMASI PESANAN (jika ada):**
+{order_info}
+
+**PERCAKAPAN SEBELUMNYA:**
+{history}
+
+**PERTANYAAN USER:** {user_input}
+
+**JAWABAN (HARUS DARI FAQ, JANGAN HALUSINASI):**
+"""
     
     try:
-        r = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        return r.text
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        return response.text
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"⚠️ Error: {str(e)}"
 
 profile = st.session_state.user_profile
 
 col1, col2, col3 = st.columns([2, 2, 1])
 with col1:
     st.title("🤖 Chatbot INAPROC")
+    st.caption("Asisten resmi dengan pengetahuan FAQ Katalog Elektronik versi 6")
 with col2:
     st.markdown(f"""
     <div class="user-profile-card">
-        <strong>👤 {profile.get('nama', 'User')}</strong><br>
-        <span class="role-badge">{profile.get('role', 'User')}</span>
+        <strong>👤 {profile.get('nama', 'User') if profile else 'User'}</strong><br>
+        <span class="role-badge">{profile.get('role', 'User') if profile else 'User'}</span>
     </div>
     """, unsafe_allow_html=True)
 with col3:
@@ -251,16 +307,26 @@ if prompt := st.chat_input("Tanyakan status pesanan atau pertanyaan seputar INAP
     st.session_state.messages.append({"role": "user", "content": prompt})
     
     with st.chat_message("assistant"):
-        with st.spinner("Memproses..."):
+        with st.spinner("Mencari di FAQ Katalog Elektronik..."):
             resp = get_bot_response(prompt)
             st.markdown(resp)
     st.session_state.messages.append({"role": "assistant", "content": resp})
 
 with st.sidebar:
-    st.markdown(f"### 👋 {profile.get('nama', 'User')}")
+    st.markdown(f"### 👋 {profile.get('nama', 'User') if profile else 'User'}")
     if st.session_state.active_po:
-        st.info(f"PO Aktif: `{st.session_state.active_po}`")
+        st.info(f"📌 PO Aktif: `{st.session_state.active_po}`")
+    
+    st.markdown("---")
+    st.markdown("### 📚 Sumber Pengetahuan")
+    st.markdown("- **FAQ Katalog Elektronik versi 6** (resmi LKPP)")
+    st.markdown("- Panduan PPK/PP & Penyedia")
+    
+    st.markdown("---")
     if st.button("🗑️ Reset Chat"):
         st.session_state.messages = []
         st.session_state.active_po = None
         st.rerun()
+    
+    st.markdown("---")
+    st.caption("🔐 Chatbot berbasis RAG dari dokumen resmi LKPP")
